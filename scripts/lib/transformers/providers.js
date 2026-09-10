@@ -209,9 +209,11 @@ export const PROVIDERS = {
     configDir: '.kimi-code',
     displayName: 'Kimi Code CLI',
     // Kimi Code CLI parses the Agent Skills subset (name + description
-    // required) plus its own fields; unknown keys are skipped. Skill-only:
-    // no hooks, no agent format. Global skills live at
-    // $KIMI_CODE_HOME/skills when set, else ~/.kimi-code/skills.
+    // required) plus its own fields; unknown keys are skipped. Its hooks
+    // are [[hooks]] entries in $KIMI_CODE_HOME/config.toml, upserted
+    // directly by the installer (no bundled manifest, no agent format).
+    // Global skills live at $KIMI_CODE_HOME/skills when set, else
+    // ~/.kimi-code/skills.
     // https://www.kimi.com/code/docs/en/kimi-code-cli/customization/skills.html
     frontmatterFields: ['license', 'compatibility', 'metadata'],
   },

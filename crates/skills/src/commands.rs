@@ -424,7 +424,7 @@ fn choose_install_plan(sys: &Sys, prompt: &mut Prompt, io: &mut Io, project_root
 }
 
 /// JS: decideHookInstall(root, targets, {yes})
-fn decide_hook_install(prompt: &mut Prompt, io: &mut Io, root: &str, targets: &[&'static str], yes: bool) -> R<bool> {
+fn decide_hook_install(sys: &Sys, prompt: &mut Prompt, io: &mut Io, root: &str, targets: &[&'static str], yes: bool) -> R<bool> {
     if targets.is_empty() {
         return Ok(false);
     }
@@ -433,7 +433,7 @@ fn decide_hook_install(prompt: &mut Prompt, io: &mut Io, root: &str, targets: &[
         Some("accepted") => return Ok(true),
         _ => {}
     }
-    if targets.iter().all(|p| hook_installed_for_provider(root, p)) {
+    if targets.iter().all(|p| hook_installed_for_provider(sys, root, p)) {
         return Ok(true);
     }
     if yes || !prompt.stdin_tty {
@@ -567,7 +567,7 @@ fn install(flags: &[String], io: &mut Io) -> R<()> {
         let linked_targets = sys.find_linked_providers(&install_root, &selected_installed, scope_opt);
         let copy_targets: Vec<&'static str> = selected_installed.iter().copied().filter(|p| !linked_targets.contains(p)).collect();
         let hook_targets: Vec<&'static str> = selected_installed.iter().chain(missing_selected_targets.iter()).copied().collect();
-        let want_hooks = install_hooks && decide_hook_install(&mut prompt, io, &hook_root, &hook_targets, yes)?;
+        let want_hooks = install_hooks && decide_hook_install(&sys, &mut prompt, io, &hook_root, &hook_targets, yes)?;
         let mut bundle_dir: Option<String> = None;
         let outcome: Result<(), String> = (|| {
             if !linked_targets.is_empty() {
@@ -579,7 +579,7 @@ fn install(flags: &[String], io: &mut Io) -> R<()> {
             }
             let mut updated = 0usize;
             let missing_hook_targets: Vec<&'static str> = if want_hooks {
-                hook_targets.iter().copied().filter(|p| !hook_installed_for_provider(&hook_root, p)).collect()
+                hook_targets.iter().copied().filter(|p| !hook_installed_for_provider(&sys, &hook_root, p)).collect()
             } else {
                 Vec::new()
             };
@@ -674,7 +674,7 @@ fn install(flags: &[String], io: &mut Io) -> R<()> {
         return Err(Flow::Exit(1));
     }
 
-    let want_hooks = install_hooks && decide_hook_install(&mut prompt, io, &hook_root, &targets, yes)?;
+    let want_hooks = install_hooks && decide_hook_install(&sys, &mut prompt, io, &hook_root, &targets, yes)?;
 
     out(io, "\nDownloading impeccable skills...");
     let bundle_dir = match bundle::download_and_extract_bundle(&sys) {
@@ -819,7 +819,7 @@ fn update(flags: &[String], io: &mut Io) -> R<()> {
             // Repair any stale pre-launcher (`node .../hook.mjs`) manifest a v3
             // install left behind, regardless of hook consent (triage E8).
             hook_manifest::repair_stale_hook_manifests(&sys, &root, &copy_providers, None).map_err(Flow::Throw)?;
-            let want_hooks = install_hooks && decide_hook_install(&mut prompt, io, &root, &copy_providers, yes)?;
+            let want_hooks = install_hooks && decide_hook_install(&sys, &mut prompt, io, &root, &copy_providers, yes)?;
             let hook_targets = if want_hooks {
                 copy_provider_hooks(&sys, &tmp_dir, &root, &copy_providers, force, None).map_err(Flow::Throw)?
             } else {
@@ -875,7 +875,7 @@ fn update(flags: &[String], io: &mut Io) -> R<()> {
         // Repair any stale pre-launcher (`node .../hook.mjs`) manifest a v3
         // install left behind, regardless of hook consent (triage E8).
         hook_manifest::repair_stale_hook_manifests(&sys, &root, &copy_providers, None).map_err(Flow::Throw)?;
-        let want_hooks = install_hooks && decide_hook_install(&mut prompt, io, &root, &providers, yes)?;
+        let want_hooks = install_hooks && decide_hook_install(&sys, &mut prompt, io, &root, &providers, yes)?;
         let hook_targets = if want_hooks {
             copy_provider_hooks(&sys, &tmp_dir, &root, &providers, force, None).map_err(Flow::Throw)?
         } else {

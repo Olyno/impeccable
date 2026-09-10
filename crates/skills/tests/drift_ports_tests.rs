@@ -453,11 +453,18 @@ fn kimi_install_and_update_follow_kimi_code_home() {
     assert_eq!(read(&installed), read(&source));
     // The relocated root wins; the default dot-dir is never created.
     assert!(!std::path::Path::new(&jsp::join(&[&home, ".kimi-code"])).exists());
+    // Hooks land in Kimi's user-level config.toml, pointing at the installed skill.
+    let cfg = jsp::join(&[&kimi_home, "config.toml"]);
+    let hook_text = read(&cfg);
+    assert_eq!(hook_text.matches("# impeccable-hook-start").count(), 1, "{hook_text}");
+    assert!(hook_text.contains("event = \"PostToolUse\"") && hook_text.contains("event = \"Stop\""));
+    assert!(hook_text.contains(&jsp::join(&[&kimi_home, "skills", "impeccable", "scripts", "impeccable"])));
 
     write(&source, "---\nname: impeccable\nversion: 9.9.10-local\n---\n\nUpdated Kimi fixture.\n");
     let r = run_cli(&["update", "-y", "--providers=kimi", "--scope=global"], &project, &env);
     assert_eq!(r.code, 0, "{}\n{}", r.stdout, r.stderr);
     assert_eq!(read(&installed), read(&source));
+    assert_eq!(read(&cfg).matches("# impeccable-hook-start").count(), 1, "update must not duplicate the block");
     std::fs::remove_dir_all(&root).ok();
 }
 

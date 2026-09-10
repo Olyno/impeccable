@@ -1790,6 +1790,13 @@ pub fn commit_footer_shown(rt: &Runtime, cache: &mut Cache, session_id: &str, te
 
 /// JS: payload(text, eventName, harness)
 pub fn payload(text: &str, event_name: &str, harness: &str) -> String {
+    if harness == "kimi" {
+        // Kimi Code CLI appends exit-0 stdout as text and reads no stdout
+        // JSON envelope; findings ride as plain text and `hook::run` turns a
+        // non-empty Stop into exit 2 + stderr, its block-and-continue
+        // contract. https://www.kimi.com/code/docs/en/kimi-code-cli/customization/hooks.html
+        return text.to_string();
+    }
     let mut out = Map::new();
     if harness == "cursor" {
         out.insert("additional_context".into(), Value::String(text.to_string()));
@@ -1885,6 +1892,7 @@ pub fn resolve_harness(rt: &Runtime, event: Option<&Map<String, Value>>) -> &'st
         Some("grok") => return "grok",
         Some("claude") => return "claude",
         Some("codex") => return "codex",
+        Some("kimi") => return "kimi",
         _ => {}
     }
     if let Some(ev) = event {
@@ -1914,6 +1922,12 @@ pub fn resolve_harness(rt: &Runtime, event: Option<&Map<String, Value>>) -> &'st
         // IMPECCABLE_HOOK_HARNESS (#603).
         if str_field(ev, "turn_id").is_some() {
             return "codex";
+        }
+        // Kimi Code's payload is Claude-shaped snake_case, but its hook
+        // contract has no stdout JSON; the `client_type` tag marks it so
+        // findings surface through Stop exit 2 + stderr instead.
+        if str_field(ev, "client_type") == Some("kimi_code_cli") {
+            return "kimi";
         }
     }
     "claude"

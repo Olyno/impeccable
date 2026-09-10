@@ -411,3 +411,79 @@ fn merge_heals_triplicated_stop_groups() {
     let merged = merge_hook_manifests(&existing, &fresh);
     assert_eq!(merged["hooks"]["Stop"].as_array().unwrap().len(), 1);
 }
+
+// ─── Kimi Code config.toml hooks ─────────────────────────────────────────────
+
+fn temp_home(name: &str) -> String {
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    let dir = std::env::temp_dir().join(format!("impeccable-{name}-{}-{nanos}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let real = dir.canonicalize().unwrap().to_string_lossy().into_owned();
+    real.strip_prefix(r"\\?\").map(str::to_string).unwrap_or(real)
+}
+
+fn kimi_sys(home: &str, cwd: &str, kimi_home: &str) -> Sys {
+    let mut env: HashMap<String, String> = HashMap::new();
+    env.insert("HOME".into(), home.to_string());
+    env.insert("USERPROFILE".into(), home.to_string());
+    env.insert("KIMI_CODE_HOME".into(), kimi_home.to_string());
+    Sys::new(env, cwd.to_string())
+}
+
+#[test]
+fn kimi_hook_upsert_preserves_foreign_config_and_dedups() {
+    let root = temp_home("kimi-hook-upsert");
+    let home = jsp::join(&[&root, "home"]);
+    let project = jsp::join(&[&root, "project"]);
+    let kimi_home = jsp::join(&[&home, ".config", "kimi-code"]);
+    std::fs::create_dir_all(&project).unwrap();
+    std::fs::create_dir_all(&kimi_home).unwrap();
+    let cfg = jsp::join(&[&kimi_home, "config.toml"]);
+    std::fs::write(&cfg, "default_model = \"m\"\n# keep me\n[loop_control]\nmax_attempts_per_step = 3\n").unwrap();
+    let sys = kimi_sys(&home, &project, &kimi_home);
+    assert!(!hook_installed_for_provider(&sys, &project, ".kimi-code"));
+
+    // User-scope install (skill_root != root): relocated user skills dir wins.
+    assert!(install_kimi_hook(&sys, &project, &home).unwrap());
+    let text = std::fs::read_to_string(&cfg).unwrap();
+    assert!(text.starts_with("default_model = \"m\"\n# keep me\n[loop_control]\nmax_attempts_per_step = 3\n"), "{text}");
+    assert_eq!(text.matches(KIMI_HOOK_START).count(), 1);
+    assert!(text.contains("event = \"PostToolUse\"") && text.contains("event = \"Stop\""));
+    assert!(text.contains("matcher = \"Edit|Write\""));
+    assert!(text.contains(&jsp::join(&[&kimi_home, "skills", "impeccable", "scripts", "impeccable"])));
+    assert!(hook_installed_for_provider(&sys, &project, ".kimi-code"));
+
+    // Idempotent: same install again changes nothing.
+    assert!(!install_kimi_hook(&sys, &project, &home).unwrap());
+    assert_eq!(std::fs::read_to_string(&cfg).unwrap().matches(KIMI_HOOK_START).count(), 1);
+
+    // Project-scope install rewrites the block in place to the project path.
+    assert!(install_kimi_hook(&sys, &project, &project).unwrap());
+    let text = std::fs::read_to_string(&cfg).unwrap();
+    assert_eq!(text.matches(KIMI_HOOK_START).count(), 1);
+    assert!(text.contains(&jsp::join(&[&project, ".kimi-code", "skills", "impeccable", "scripts", "impeccable"])));
+    assert!(!text.contains(&jsp::join(&[&kimi_home, "skills"])));
+    std::fs::remove_dir_all(&root).ok();
+}
+
+#[test]
+fn kimi_hook_creates_missing_config() {
+    let root = temp_home("kimi-hook-create");
+    let home = jsp::join(&[&root, "home"]);
+    std::fs::create_dir_all(&home).unwrap();
+    let sys = {
+        let mut env: HashMap<String, String> = HashMap::new();
+        env.insert("HOME".into(), home.clone());
+        env.insert("USERPROFILE".into(), home.clone());
+        Sys::new(env, home.clone())
+    };
+    let cfg = jsp::join(&[&home, ".kimi-code", "config.toml"]);
+    assert!(install_kimi_hook(&sys, &home, &home).unwrap());
+    let text = std::fs::read_to_string(&cfg).unwrap();
+    assert!(text.starts_with(KIMI_HOOK_START), "{text}");
+    assert!(text.contains(&jsp::join(&[&home, ".kimi-code", "skills", "impeccable", "scripts", "impeccable"])));
+    std::fs::remove_dir_all(&root).ok();
+}

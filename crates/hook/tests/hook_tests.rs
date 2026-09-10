@@ -588,6 +588,47 @@ fn stop_baseline_untrusted_shapes_do_not_suppress_findings() {
 }
 
 #[test]
+fn kimi_harness_uses_client_type_and_plain_text_stop() {
+    let t = Tmp::new();
+    let cwd = t.path();
+    t.write("package.json", "{}");
+    let auto: Map<String, Value> = serde_json::from_value(json!({
+        "hook_event_name": "PostToolUse", "client_type": "kimi_code_cli",
+        "session_id": "s1", "cwd": cwd
+    }))
+    .unwrap();
+    assert_eq!(resolve_harness(&rt(&cwd), Some(&auto)), "kimi");
+
+    let file = t.write("card.css", SIDE_TAB_CSS);
+    let r = rt_with(&cwd, env(&[("IMPECCABLE_HOOK_HARNESS", "kimi")]));
+    let event = edit_with_original(&cwd, &file, "s1", SIDE_TAB_CSS, SIDE_TAB_CSS, SIDE_TAB_CSS);
+    hook::run_hook(&r, &event);
+    let stop = hook::run_stop_hook(&r, &stop_event(&cwd, "s1"));
+    assert_eq!(stop.audit["harness"], json!("kimi"));
+    assert!(!stop.stdout.is_empty());
+    assert!(!stop.stdout.starts_with('{'), "kimi payload is plain text: {}", stop.stdout);
+}
+
+#[test]
+fn kimi_stop_findings_exit_two_with_stderr_message() {
+    let t = Tmp::new();
+    let cwd = t.path();
+    t.write("package.json", "{}");
+    let file = t.write("card.css", SIDE_TAB_CSS);
+    let r = rt_with(&cwd, env(&[("IMPECCABLE_HOOK_HARNESS", "kimi")]));
+    let event = edit_with_original(&cwd, &file, "s1", SIDE_TAB_CSS, SIDE_TAB_CSS, SIDE_TAB_CSS);
+    hook::run_hook(&r, &event);
+    let (mut io, captured) = Io::captured("", PathBuf::from(&cwd), env(&[("IMPECCABLE_HOOK_HARNESS", "kimi")]));
+    let code = hook::run(&r, &stop_event(&cwd, "s1"), &mut io);
+    drop(io);
+    let stdout = String::from_utf8_lossy(&captured.stdout.borrow()).into_owned();
+    let stderr = String::from_utf8_lossy(&captured.stderr.borrow()).into_owned();
+    assert_eq!(code, 2, "kimi Stop findings must block-and-continue; stdout={stdout}");
+    assert!(!stderr.trim().is_empty(), "kimi Stop findings go to stderr verbatim");
+    assert!(stdout.is_empty(), "kimi Stop must not print stdout JSON: {stdout}");
+}
+
+#[test]
 fn stop_baseline_scan_suppression_discards_exemptions() {
     let t = Tmp::new();
     let cwd = t.path();

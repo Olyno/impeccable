@@ -34,7 +34,8 @@ fn runtime<'a>(io: &Io, html: &'a dyn HtmlEngine) -> Runtime<'a> {
     )
 }
 
-/// `impeccable hook` (PostToolUse per-edit pass + Stop deep pass). Exit 0.
+/// `impeccable hook` (PostToolUse per-edit pass + Stop deep pass). Exit 0,
+/// except Kimi Stop findings, which signal continue-with-message as exit 2.
 pub fn run_hook(_args: &[String], io: &mut Io, html: &dyn HtmlEngine) -> i32 {
     let stdin = io.stdin().to_string();
     let rt = runtime(io, html);

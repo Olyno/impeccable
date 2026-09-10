@@ -842,18 +842,27 @@ fn is_stop_event(stdin: &str) -> bool {
     }
 }
 
-/// `impeccable hook` (hook.mjs main). Returns the exit code (always 0).
+/// `impeccable hook` (hook.mjs main). Exit 0, except Kimi Stop findings,
+/// which return 2 to feed the model.
 pub fn run(rt: &Runtime, stdin: &str, io: &mut impeccable_common::Io) -> i32 {
     // JS: process.env.IMPECCABLE_HOOK_DEPTH = process.env.IMPECCABLE_HOOK_DEPTH || '1'
     // is exported for child processes; this binary spawns none, so the
     // pre-mutation snapshot in `rt.env` is the only value that matters.
-    let result = if is_stop_event(stdin) {
+    let stop = is_stop_event(stdin);
+    let result = if stop {
         run_stop_hook(rt, stdin)
     } else {
         run_hook(rt, stdin)
     };
     write_audit_log(rt, &result.audit, &rt.proc_cwd);
     if !result.stdout.is_empty() {
+        // Kimi Code treats exit 2 on Stop as "continue with this message"
+        // (carried on stderr) and ignores stdout JSON, so findings go through
+        // that channel. Other Stop output stays exit 0.
+        if stop && result.audit.get("harness").and_then(Value::as_str) == Some("kimi") {
+            io.err(&result.stdout);
+            return 2;
+        }
         io.out(&result.stdout);
     }
     0

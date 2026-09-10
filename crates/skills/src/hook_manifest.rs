@@ -270,8 +270,78 @@ pub fn file_has_impeccable_hook_marker(file: &str) -> bool {
     }
 }
 
+pub const KIMI_HOOK_START: &str = "# impeccable-hook-start";
+pub const KIMI_HOOK_END: &str = "# impeccable-hook-end";
+
+/// The `[[hooks]]` config Kimi Code reads: `$KIMI_CODE_HOME/config.toml`
+/// (default `~/.kimi-code/config.toml`). Kimi has no project-level config.
+pub fn kimi_hook_config_path(sys: &Sys) -> String {
+    jsp::join(&[&crate::providers::kimi_global_home(&sys.env, &sys.home), "config.toml"])
+}
+
+fn kimi_hook_block(skill_path: &str) -> String {
+    let command = {
+        let q = sh_single_quote(skill_path);
+        json_string(&format!("[ ! -f {q} ] || {q} hook"))
+    };
+    format!(
+        "{KIMI_HOOK_START}\n[[hooks]]\nevent = \"PostToolUse\"\nmatcher = \"Edit|Write\"\ncommand = {command}\ntimeout = 30\n\n[[hooks]]\nevent = \"Stop\"\ncommand = {command}\ntimeout = 60\n{KIMI_HOOK_END}\n"
+    )
+}
+
+fn strip_kimi_hook_block(text: &str) -> String {
+    let mut out = text.to_string();
+    while let (Some(start), Some(end_rel)) = (out.find(KIMI_HOOK_START), out.find(KIMI_HOOK_END)) {
+        if end_rel < start {
+            break;
+        }
+        let mut end = end_rel + KIMI_HOOK_END.len();
+        if out[end..].starts_with('\n') {
+            end += 1;
+        }
+        let mut block_start = start;
+        if out[..block_start].ends_with('\n') && out[..block_start].ends_with("\n\n") {
+            block_start -= 1;
+        }
+        out.replace_range(block_start..end, "");
+    }
+    out
+}
+
+/// Upsert the marker-bracketed hook block into Kimi's config.toml, keeping
+/// every other byte (comments included). Returns true when the file changed.
+pub fn install_kimi_hook(sys: &Sys, root: &str, skill_root: &str) -> Result<bool, String> {
+    let absolute = skill_root != root || sys.is_home_dir(root);
+    let skill_path = if absolute {
+        jsp::join(&[&sys.user_provider_skills_dir(skill_root, ".kimi-code"), "impeccable", "scripts", "impeccable"])
+    } else {
+        jsp::join(&[root, ".kimi-code", "skills", "impeccable", "scripts", "impeccable"])
+    };
+    let file = kimi_hook_config_path(sys);
+    let existing = util::read_text(&file).unwrap_or_default();
+    let mut next = strip_kimi_hook_block(&existing);
+    if !next.is_empty() {
+        if !next.ends_with('\n') {
+            next.push('\n');
+        }
+        next.push('\n');
+    }
+    next.push_str(&kimi_hook_block(&skill_path));
+    if next == existing {
+        return Ok(false);
+    }
+    util::mkdir_p(&jsp::dirname(&file))?;
+    util::write_bytes(&file, next.as_bytes())?;
+    Ok(true)
+}
+
 /// JS: hookInstalledForProvider(root, provider)
-pub fn hook_installed_for_provider(root: &str, provider: &str) -> bool {
+pub fn hook_installed_for_provider(sys: &Sys, root: &str, provider: &str) -> bool {
+    if provider == ".kimi-code" {
+        return util::read_text(&kimi_hook_config_path(sys))
+            .map(|t| t.contains(KIMI_HOOK_START))
+            .unwrap_or(false);
+    }
     let artifacts = provider_hook_artifacts(provider);
     if artifacts.is_empty() {
         return true;
@@ -417,6 +487,15 @@ pub fn copy_provider_hooks(sys: &crate::providers::Sys, bundle_dir: &str, root: 
     let skill_root = skill_root.unwrap_or(root);
     let mut written: Vec<&'static str> = Vec::new();
     for provider in providers {
+        // Kimi Code has no bundled manifest to merge: its hooks are
+        // `[[hooks]]` entries in the user-level config.toml, written
+        // directly. Consent gating is identical to the manifest providers.
+        if *provider == ".kimi-code" {
+            if install_kimi_hook(sys, root, skill_root)? && !written.contains(provider) {
+                written.push(provider);
+            }
+            continue;
+        }
         for artifact in hook_artifacts_for_provider(bundle_dir, root, provider) {
             if !util::exists(&artifact.src) {
                 continue;
