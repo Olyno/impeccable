@@ -9,7 +9,7 @@ pub const API_BASE: &str = "https://impeccable.style";
 
 pub const PROVIDER_DIRS: &[&str] = &[
     ".claude", ".cursor", ".dsh", ".gemini", ".agents", ".agent", ".github", ".grok", ".hermes", ".kiro",
-    ".opencode", ".pi", ".qoder", ".trae", ".trae-cn", ".rovodev", ".vibe",
+    ".kimi-code", ".opencode", ".pi", ".qoder", ".trae", ".trae-cn", ".rovodev", ".vibe",
 ];
 
 const PROVIDER_ALIASES: &[(&str, &str)] = &[
@@ -31,6 +31,7 @@ const PROVIDER_ALIASES: &[(&str, &str)] = &[
     ("hermes", ".hermes"),
     ("xai", ".grok"),
     ("kiro", ".kiro"),
+    ("kimi", ".kimi-code"),
     ("opencode", ".opencode"),
     ("pi", ".pi"),
     ("qoder", ".qoder"),
@@ -52,6 +53,7 @@ const PROVIDER_DISPLAY: &[(&str, &str, &str)] = &[
     (".grok", "Grok Build", "grok"),
     (".hermes", "Hermes Agent", "hermes"),
     (".kiro", "Kiro", "kiro"),
+    (".kimi-code", "Kimi Code CLI", "kimi"),
     (".opencode", "OpenCode", "opencode"),
     (".pi", "Pi Coding Agent", "pi"),
     (".qoder", "Qoder", "qoder"),
@@ -62,7 +64,7 @@ const PROVIDER_DISPLAY: &[(&str, &str, &str)] = &[
 ];
 
 pub const PROVIDER_INPUT_ORDER: &[&str] = &[
-    "antigravity", "claude", "codex", "cursor", "dsh", "gemini", "github", "grok", "hermes", "kiro",
+    "antigravity", "claude", "codex", "cursor", "dsh", "gemini", "github", "grok", "hermes", "kimi", "kiro",
     "opencode", "pi", "qoder", "trae", "trae-cn", "rovo-dev", "vibe",
 ];
 
@@ -112,12 +114,22 @@ pub fn dsh_global_home(env: &Env, cwd: &str, home: &str) -> String {
     jsp::join(&[home, ".dsh"])
 }
 
+/// JS: kimiGlobalHome(home): $KIMI_CODE_HOME relocates Kimi's whole data
+/// root; used as given when set (like OPENCODE_CONFIG_DIR), else ~/.kimi-code.
+pub fn kimi_global_home(env: &Env, home: &str) -> String {
+    if let Some(v) = env.get("KIMI_CODE_HOME").filter(|v| !v.is_empty()) {
+        return v.clone();
+    }
+    jsp::join(&[home, ".kimi-code"])
+}
+
 /// JS: HOME_SKILLS_DIR_OVERRIDES[provider]?.(home)
 fn home_skills_dir_override(env: &Env, cwd: &str, provider: &str, home: &str) -> Option<String> {
     match provider {
         ".agent" => Some(jsp::join(&[home, ".gemini", "config", "skills"])),
         ".dsh" => Some(jsp::join(&[&dsh_global_home(env, cwd, home), "skills"])),
         ".hermes" => Some(jsp::join(&[&hermes_global_home(env, cwd, home), "skills"])),
+        ".kimi-code" => Some(jsp::join(&[&kimi_global_home(env, home), "skills"])),
         ".pi" => Some(jsp::join(&[home, ".pi", "agent", "skills"])),
         ".opencode" => Some(jsp::join(&[&opencode_global_config_dir(env, home), "skills"])),
         _ => None,
@@ -125,7 +137,7 @@ fn home_skills_dir_override(env: &Env, cwd: &str, provider: &str, home: &str) ->
 }
 
 fn has_home_override(provider: &str) -> bool {
-    matches!(provider, ".agent" | ".dsh" | ".hermes" | ".pi" | ".opencode")
+    matches!(provider, ".agent" | ".dsh" | ".hermes" | ".kimi-code" | ".pi" | ".opencode")
 }
 
 /// Everything the scans need from the process: env, cwd, and the resolved
@@ -359,6 +371,9 @@ impl Sys {
                 Hint::DshHome(provider) => {
                     config_dir_detection(provider, dsh_global_home(&self.env, &self.cwd, home))
                 }
+                Hint::KimiHome(provider) => {
+                    config_dir_detection(provider, kimi_global_home(&self.env, home))
+                }
             };
             if !util::exists(&found_path) {
                 continue;
@@ -451,12 +466,18 @@ enum Hint {
     /// the resolved home (which falls back to `~/.dsh`) rather than a fixed
     /// relative path; a plain `Home` hint would miss a DSH_HOME-only setup.
     DshHome(&'static str),
+    /// Same reasoning as `DshHome`: `$KIMI_CODE_HOME` relocates the whole
+    /// Kimi data root.
+    KimiHome(&'static str),
 }
 
 impl Hint {
     fn provider(&self) -> &'static str {
         match self {
-            Hint::Home(_, p) | Hint::OpencodeConfig(p) | Hint::DshHome(p) => p,
+            Hint::Home(_, p)
+            | Hint::OpencodeConfig(p)
+            | Hint::DshHome(p)
+            | Hint::KimiHome(p) => p,
         }
     }
 }
@@ -474,6 +495,7 @@ const GLOBAL_HARNESS_HINTS: &[Hint] = &[
     Hint::Home(".grok", ".grok"),
     Hint::Home(".hermes", ".hermes"),
     Hint::Home(".kiro", ".kiro"),
+    Hint::KimiHome(".kimi-code"),
     Hint::Home(".opencode", ".opencode"),
     Hint::OpencodeConfig(".opencode"),
     Hint::Home(".pi", ".pi"),
@@ -817,6 +839,23 @@ mod tests {
         assert_eq!(dsh_global_home(&env, cwd, home), custom);
         env.insert("DSH_HOME".into(), "/elsewhere/dsh".into());
         assert_eq!(dsh_global_home(&env, cwd, home), default);
+    }
+
+    #[test]
+    fn kimi_provider_resolves() {
+        assert_eq!(normalize_provider_name("kimi"), Some(".kimi-code"));
+        assert_eq!(normalize_provider_name(".kimi-code"), Some(".kimi-code"));
+        assert_eq!(provider_display_name(".kimi-code"), "Kimi Code CLI");
+        assert_eq!(provider_input_name(".kimi-code"), "kimi");
+
+        // $KIMI_CODE_HOME wins as given (like OPENCODE_CONFIG_DIR), else
+        // the default user skills root is ~/.kimi-code/skills.
+        let home = if cfg!(windows) { r"C:\Users\u" } else { "/home/u" };
+        let env = Env::new();
+        assert_eq!(kimi_global_home(&env, home), jsp::join(&[home, ".kimi-code"]));
+        let mut env = Env::new();
+        env.insert("KIMI_CODE_HOME".into(), "/data/kimi".into());
+        assert_eq!(kimi_global_home(&env, home), "/data/kimi");
     }
 
     #[test]

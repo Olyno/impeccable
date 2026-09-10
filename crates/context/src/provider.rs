@@ -68,6 +68,7 @@ fn provider_from_skill_dir(skill_dir: &str) -> Option<&'static str> {
         ".agents" => "agents",
         ".github" => "github",
         ".kiro" => "kiro",
+        ".kimi-code" => "kimi",
         ".opencode" => "opencode",
         ".pi" => "pi",
         ".qoder" => "qoder",

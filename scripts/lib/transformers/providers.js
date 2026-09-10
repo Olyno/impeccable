@@ -203,4 +203,16 @@ export const PROVIDERS = {
     // no writeOpenAIMetadata. See hermes-agent/SKILL.md "Skills" section.
     frontmatterFields: ['license', 'compatibility', 'metadata'],
   },
+  kimi: {
+    provider: 'kimi',
+    providerTags: ['kimi'],
+    configDir: '.kimi-code',
+    displayName: 'Kimi Code CLI',
+    // Kimi Code CLI parses the Agent Skills subset (name + description
+    // required) plus its own fields; unknown keys are skipped. Skill-only:
+    // no hooks, no agent format. Global skills live at
+    // $KIMI_CODE_HOME/skills when set, else ~/.kimi-code/skills.
+    // https://www.kimi.com/code/docs/en/kimi-code-cli/customization/skills.html
+    frontmatterFields: ['license', 'compatibility', 'metadata'],
+  },
 };

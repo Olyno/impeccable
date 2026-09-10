@@ -651,6 +651,7 @@ This folder contains skills for all supported tools:
   .github/    -> GitHub Copilot
   .grok/      -> Grok Build
   .hermes/    -> Hermes Agent
+  .kimi-code/ -> Kimi Code CLI
   .kiro/      -> Kiro
   .opencode/  -> OpenCode
   .pi/        -> Pi

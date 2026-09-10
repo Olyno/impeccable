@@ -1,6 +1,7 @@
 //! Detection coverage for env-relocated global harness dirs: `$DSH_HOME`
 //! (DeepSeek Harness) must be detected even when `~/.dsh` itself does not
-//! exist, and must be ignored when it points outside home.
+//! exist, and must be ignored when it points outside home. Same for
+//! `$KIMI_CODE_HOME` (Kimi Code CLI), which wins as given.
 
 use std::collections::HashMap;
 
@@ -74,4 +75,22 @@ fn dsh_home_outside_home_falls_back_to_dot_dsh() {
     std::fs::create_dir_all(jsp::join(&[&home, ".dsh"])).unwrap();
     let found = dsh_detections(&sys, &project);
     assert_eq!(found, vec![jsp::join(&[&home, ".dsh"])]);
+}
+
+#[test]
+fn kimi_code_home_relocated_setup_is_detected() {
+    let home = temp_root("kimi-home-detect");
+    let project = temp_root("kimi-home-project");
+    // The docs' relocation example, and a root outside home is honored too.
+    let kimi_home = jsp::join(&[&home, ".config", "kimi-code"]);
+    std::fs::create_dir_all(&kimi_home).unwrap();
+    let sys = sys_with(&home, &[("KIMI_CODE_HOME", &kimi_home)]);
+
+    let found = sys
+        .collect_install_detections(&project)
+        .into_iter()
+        .filter(|d| d.provider == ".kimi-code" && d.scope == Scope::User)
+        .map(|d| d.found_path)
+        .collect::<Vec<_>>();
+    assert_eq!(found, vec![kimi_home]);
 }

@@ -3,7 +3,7 @@
 Source of truth for what each AI coding harness supports in terms of agent skills.
 Used to inform provider configs in `scripts/lib/transformers/providers.js`.
 
-Last verified: 2026-04-28 (subagent landscape spot-checked 2026-06-28; Mistral Vibe row verified 2026-07-16; Grok Build skills row verified 2026-07-21; Grok Build hook stdin captured 2026-08-24; DeepSeek Harness row verified 2026-09-06)
+Last verified: 2026-04-28 (subagent landscape spot-checked 2026-06-28; Mistral Vibe row verified 2026-07-16; Grok Build skills row verified 2026-07-21; Grok Build hook stdin captured 2026-08-24; DeepSeek Harness row verified 2026-09-06; Kimi Code CLI rows verified 2026-09-10)
 
 > This file is point-in-time. Capabilities move fast; verify live before relying
 > on any "only X supports Y" claim. Notably, the subagent table below lists
@@ -28,6 +28,7 @@ Last verified: 2026-04-28 (subagent landscape spot-checked 2026-06-28; Mistral V
 | Mistral Vibe | https://docs.mistral.ai/vibe/code/cli/skills |
 | Grok Build | https://docs.x.ai/build/features/skills-plugins-marketplaces |
 | Hermes Agent | https://hermes-agent.nousresearch.com/docs/ |
+| Kimi Code CLI | https://www.kimi.com/code/docs/en/kimi-code-cli/customization/skills.html |
 | Antigravity | https://antigravity.google/docs/skills |
 
 ## Spec Compliance
@@ -67,6 +68,7 @@ Notes:
 - Antigravity supports standard Agent Skills spec frontmatter fields (`name`, `description`, `license`, `compatibility`, `metadata`, `allowed-tools`).
 - OpenCode 1.18.10 recognises only the spec subset on SKILL.md (`name`, `description`, `license`, `compatibility`, `metadata`). Claude-style extensions (`user-invocable`, `argument-hint`, `allowed-tools`, `model`, `agent`) are silently ignored; Impeccable still emits them today for other harnesses, but they have no effect in OpenCode. Use `commands/<name>.md` (see Placeholder / Variable Substitution below) for slash UX; OpenCode honours only `description`, `agent`, `model`, `variant`, `subtask` on command files.
 - DeepSeek Harness parses the Agent Skills frontmatter and requires `name` and `description`; it reads `metadata`, `user-invocable`, and `disable-model-invocation`. Spec fields it does not consume (`license`, `compatibility`, `allowed-tools`) and Claude-style extensions (`argument-hint`, `model`, `effort`, `context`, `agent`, `hooks`) are silently ignored. Hooks are in-process plugins configured via cordis.yml, not on-disk manifests, so there is no hook surface to install. Subagents exist but are composed from preset config, not an on-disk skill-adjacent format. Verified against the [filesystem skill provider](https://github.com/deepseek-ai/deepseek-harness/blob/master/packages/skill/skill-filesystem/README.md).
+- Kimi Code CLI requires `name` + `description` on directory-form `SKILL.md`; Impeccable's spec extras ride along as unknown keys. Skills invoke as `/impeccable <verb>` (formally `/skill:impeccable`, bare-name shorthand when free). No on-disk hook manifest and no subagent sidecar format. Verified against https://www.kimi.com/code/docs/en/kimi-code-cli/customization/skills.html.
 - Unknown fields are silently ignored by all harnesses.
 
 ## Hook surface used by Impeccable
@@ -99,6 +101,7 @@ Notes:
 | Mistral Vibe | `.vibe/skills/` (project), `~/.vibe/skills/` (global) | `.agents/skills/` (project), `~/.agents/skills/` (global) |
 | Grok Build | `.grok/skills/` (project), `~/.grok/skills/` (global) | `.agents/skills/`, `.claude/skills/`, `.cursor/skills/` (Claude/Cursor compat, configurable) |
 | Hermes Agent | `.hermes/skills/` (project), `~/.hermes/skills/` (global) | `skills.external_dirs` config (no automatic `.agents/skills/` fallback) |
+| Kimi Code CLI | `.kimi-code/skills/` (project), `~/.kimi-code/skills/` (global; `$KIMI_CODE_HOME/skills` when set) | `.agents/skills/` (project), `~/.agents/skills/` (global) |
 | Antigravity | `.agent/skills/` (project), `~/.gemini/config/skills/` (global) | `.agents/skills/` (project), `~/.agents/skills/` (global) |
 
 All harnesses support the `{skill-name}/SKILL.md` directory structure with optional `reference/`, `scripts/`, and `assets/` subdirectories.

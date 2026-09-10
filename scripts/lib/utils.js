@@ -520,6 +520,12 @@ export const PROVIDER_PLACEHOLDERS = {
     config_file: 'AGENTS.md',
     ask_instruction: 'Ask the user directly to clarify what you cannot infer.',
     command_prefix: '/'
+  },
+  'kimi': {
+    model: 'Kimi',
+    config_file: 'AGENTS.md',
+    ask_instruction: 'STOP and call the AskUserQuestion tool to clarify.',
+    command_prefix: '/'
   }
 };
 
@@ -535,6 +541,7 @@ export const PROVIDER_BLOCK_TAGS = new Set([
   'github',
   'grok',
   'hermes',
+  'kimi',
   'kiro',
   'opencode',
   'pi',

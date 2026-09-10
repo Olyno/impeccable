@@ -431,6 +431,36 @@ fn dsh_install_and_update_use_relocated_home_without_touching_project_skills() {
     std::fs::remove_dir_all(&root).ok();
 }
 
+#[test]
+fn kimi_install_and_update_follow_kimi_code_home() {
+    let root = temp_root("kimi-install-update");
+    let project = jsp::join(&[&root, "project"]);
+    let home = jsp::join(&[&root, "home"]);
+    let tmpdir = jsp::join(&[&root, "tmp"]);
+    let kimi_home = jsp::join(&[&home, ".config", "kimi-code"]);
+    for dir in [&project, &home, &tmpdir, &kimi_home] {
+        std::fs::create_dir_all(dir).unwrap();
+    }
+    std::fs::create_dir_all(jsp::join(&[&project, ".git"])).unwrap();
+    let bundle = create_fake_universal_bundle(&root, &[".kimi-code"]);
+    let mut env = base_env(&home, &tmpdir, &bundle);
+    env.insert("KIMI_CODE_HOME".into(), kimi_home.clone());
+    let installed = jsp::join(&[&kimi_home, "skills", "impeccable", "SKILL.md"]);
+    let source = jsp::join(&[&bundle, ".kimi-code", "skills", "impeccable", "SKILL.md"]);
+
+    let r = run_cli(&["install", "-y", "--providers=kimi", "--scope=global"], &project, &env);
+    assert_eq!(r.code, 0, "{}\n{}", r.stdout, r.stderr);
+    assert_eq!(read(&installed), read(&source));
+    // The relocated root wins; the default dot-dir is never created.
+    assert!(!std::path::Path::new(&jsp::join(&[&home, ".kimi-code"])).exists());
+
+    write(&source, "---\nname: impeccable\nversion: 9.9.10-local\n---\n\nUpdated Kimi fixture.\n");
+    let r = run_cli(&["update", "-y", "--providers=kimi", "--scope=global"], &project, &env);
+    assert_eq!(r.code, 0, "{}\n{}", r.stdout, r.stderr);
+    assert_eq!(read(&installed), read(&source));
+    std::fs::remove_dir_all(&root).ok();
+}
+
 // ─── home-scoped agent freshness (16a218e6) ──────────────────────────────────
 
 #[test]

@@ -105,7 +105,7 @@ From the root of your project, run:
 npx impeccable install
 ```
 
-This shows the harness folders or installed CLIs it detected (for example `~/.claude`, `~/.codex`, `~/.grok`, `~/.hermes`, `~/.veto`, or project-local `.cursor`), lets you keep the detected set or customize providers, then asks whether to install into the current project or globally. Use `--providers=claude,codex,cursor,grok,hermes,veto` and `--scope=project|global` to skip those choices in scripts. On Claude Code, Cursor, Codex, GitHub Copilot, and Grok Build, it also installs the provider-native hook manifest for the current project. Veto receives the packaged skill under `~/.veto/skills/` and does not run native Impeccable edit hooks. Works with Cursor, Claude Code, Gemini CLI, Codex CLI, Grok Build, Hermes Agent, Veto, and every other supported tool. Reload your harness afterward.
+This shows the harness folders or installed CLIs it detected (for example `~/.claude`, `~/.codex`, `~/.grok`, `~/.hermes`, `~/.veto`, or project-local `.cursor`), lets you keep the detected set or customize providers, then asks whether to install into the current project or globally. Use `--providers=claude,codex,cursor,grok,hermes,veto` and `--scope=project|global` to skip those choices in scripts. On Claude Code, Cursor, Codex, GitHub Copilot, and Grok Build, it also installs the provider-native hook manifest for the current project. Veto receives the packaged skill under `~/.veto/skills/` and does not run native Impeccable edit hooks. Works with Cursor, Claude Code, Gemini CLI, Codex CLI, Grok Build, Hermes Agent, Kimi Code CLI, Veto, and every other supported tool. Reload your harness afterward.
 
 To refresh an existing install, run:
 
@@ -225,6 +225,20 @@ cp -r dist/hermes/.hermes your-project/
 > on Hermes (no hook surface).
 >
 > [Learn more about Hermes skills](https://hermes-agent.nousresearch.com/docs/user-guide/features/skills)
+
+**Kimi Code CLI:**
+```bash
+# Project-specific
+cp -r dist/kimi/.kimi-code your-project/
+
+# Or global (applies to all projects)
+mkdir -p "${KIMI_CODE_HOME:-$HOME/.kimi-code}/skills"
+cp -r dist/kimi/.kimi-code/skills/* "${KIMI_CODE_HOME:-$HOME/.kimi-code}/skills/"
+```
+
+With `KIMI_CODE_HOME` set, user-scope installs land in `$KIMI_CODE_HOME/skills`; otherwise `~/.kimi-code/skills`. Kimi also reads the shared `.agents/skills/` tiers, so a Codex install is picked up too.
+
+[Learn more about Kimi Code skills](https://www.kimi.com/code/docs/en/kimi-code-cli/customization/skills.html)
 
 **Pi:**
 ```bash
@@ -483,6 +497,7 @@ Full detector docs: [impeccable.style/docs/detector](https://impeccable.style/do
 - [Codex CLI](https://github.com/openai/codex)
 - [Grok Build](https://x.ai/cli)
 - [Hermes Agent](https://hermes-agent.nousresearch.com)
+- [Kimi Code CLI](https://www.kimi.com/code/docs/en/kimi-code-cli/customization/skills.html)
 - [OpenCode](https://opencode.ai)
 - [Pi](https://pi.dev)
 - [Kiro](https://kiro.dev)
